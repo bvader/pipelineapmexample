@@ -39,7 +39,7 @@ public class LowBudgetKafka {
         }
         while (burnCpus) {
             infoConsole.info("~ ~~~~ ZZZZ - zzzz - zzzzz ~~~~~~~~~ ~~~ z ~~~~ ~ ~ z ~ ~");
-            TimeUnit.HOURS.sleep(10);
+            TimeUnit.SECONDS.sleep(15);
         }
         infoConsole.info("**** Bye ****\n-------------------------------------------------------------------------------------");
     }

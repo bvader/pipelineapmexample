@@ -1,11 +1,13 @@
 package org.pipelineexample.apm.processor;
 
-import co.elastic.apm.api.ElasticApm;
-import co.elastic.apm.api.Span;
-import co.elastic.apm.api.Transaction;
+import co.elastic.apm.api.*;
 import org.pipelineexample.apm.LowBudgetKafka;
 
 import java.io.IOException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -13,17 +15,19 @@ import java.util.regex.Pattern;
 
 public class PipelineProcessor {
 
-    private static final String PARENT_TRANSACTION_NAME = "apmToyExampleParentTransaction";
+    private static final String PARENT_TRANSACTION_NAME = "ToyPipelineTxn";
 
     private final String name;
     private final LowBudgetKafka communicationChannel;
     private final ProcessorType type;
     private String message;
+    private DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss.SSS");
 
     public PipelineProcessor(String name, LowBudgetKafka communicationChannel, ProcessorType type) {
         this.name = name;
         this.communicationChannel = communicationChannel;
         this.type = type;
+
     }
 
     public void process() throws InterruptedException, IOException {
@@ -37,33 +41,37 @@ public class PipelineProcessor {
      */
     private String processMessage(String message) throws InterruptedException {
         this.message = message;
-        Transaction parentTransaction = getOrCreateTransaction(message);
-        Span span = parentTransaction.startSpan();
+        System.out.println("In Process Message... at " + dateFormat.format(new Date()));
+        Transaction transaction = createTransaction(message);
+        Span span = transaction.startSpan();
         try {
-            span.setName(name);
-            thisIsActuallyABusinessLogic();
-            parentTransaction.injectTraceHeaders(this::injectParentTransactionId);
-            return this.message + " processed by " + name;
+           span.injectTraceHeaders(this::injectParentTransactionId);
+           span.setName(name+"-span");
+           thisIsActuallyABusinessLogic();
+           return this.message + " processed by " + name;
         } catch (Exception e) {
-            parentTransaction.captureException(e);
+            transaction.captureException(e);
             span.captureException(e);
             throw e;
         } finally {
+            System.out.println("Before Span End");
             span.end();
-            if (type == ProcessorType.SINK) {
-                parentTransaction.end();
-            }
+            transaction.end();
+            System.out.println("After Span End");
         }
     }
 
-    private Transaction getOrCreateTransaction(String message) {
+
+    private Transaction createTransaction(String message) {
         Transaction transaction;
         if (type == ProcessorType.SOURCE) {
+            System.out.println("Creating transaction new, processor type = " + type);
             transaction = ElasticApm.startTransaction();
         } else {
+            System.out.println("Creating transaction with remote parent, processor type = " + type);
             transaction = ElasticApm.startTransactionWithRemoteParent(key -> extractKey(key, message));
         }
-        transaction.setName(PARENT_TRANSACTION_NAME);
+        transaction.setName(name+"-txn");
         return transaction;
     }
 
@@ -71,12 +79,19 @@ public class PipelineProcessor {
      * Some useful work.
      */
     private void thisIsActuallyABusinessLogic() throws InterruptedException {
-        TimeUnit.SECONDS.sleep(3);
+        Random random = new Random();
+        //int processTime = random.nextInt(5) + 1;
+        int processTime = 3;
+        System.out.println("processTime time in seconds = " + processTime);
+        TimeUnit.SECONDS.sleep(processTime);
     }
 
     private void injectParentTransactionId(String key, String value) {
+        System.out.println("header key : " + key);
+        System.out.println("header value : " + value);
         removeOldKey(key);
-        message = " <<<" + key + ":" + value + ";>>>" + message;
+        message = "<" + key + ":" + value + "> " + message;
+
     }
 
     private void removeOldKey(String key) {
@@ -96,6 +111,6 @@ public class PipelineProcessor {
     }
 
     private Pattern getKeyPattern(String key) {
-        return Pattern.compile("<<<" + key + ":(.+);>>>");
+        return Pattern.compile("<" + key + ":(.+)> ");
     }
 }

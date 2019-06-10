@@ -11,16 +11,15 @@ Other possible option might be the same only without parent transaction.
 
 
 ## Quick start
-Create `apm.properties` file using your APM server properties, content should be similar to [apm.example.properties](apm.example.properties) file.
 Run
 ```
-./gradlew clean runPipeline
+./run-pipeline.sh
 ```
 
 ## More details
-Gradle task `runPipeline` builds project and execute result jar file several times, to create a pipeline that consist of several
+`run-pipeline.sh` builds the project and executes the result jar file several times, to create a pipeline that consist of several
 java processes (one for each [processor](src/main/java/org/pipelineexample/apm/processor/PipelineProcessor.java)).
-Number of processors and ports that they use for sending/receiving messages is defined in [pipeline.properties](pipeline.properties). 
+Number of processors and ports that they use for sending/receiving messages is defined in [run-pipeline.sh](run-pipeline.sh).
 Each [processor](src/main/java/org/pipelineexample/apm/processor/PipelineProcessor.java) except `Source`(just a fancy name for the first [processor](src/main/java/org/pipelineexample/apm/processor/PipelineProcessor.java), last is `Sink`) waits for message on incoming port,
 process it and write new message to outgoing port. `Source` does not read message, it just sends "First message" string.
 
@@ -41,70 +40,91 @@ Processor "Business logic" is executed in [`PipelineProcessor.thisIsActuallyABus
 [`PipelineProcessor.processMessage`](src/main/java/org/pipelineexample/apm/processor/PipelineProcessor.java) is used to wrap this logic with APM Transactions
 
 ```java
-    private String processMessage(String message) throws InterruptedException {
-         this.message = message;
-         Transaction parentTransaction = getOrCreateTransaction(message);
-         Span span = parentTransaction.startSpan();
-         try {
-             span.setName(name);
-             thisIsActuallyABusinessLogic();
-             parentTransaction.injectTraceHeaders(this::injectParentTransactionId);
-             return this.message + " processed by " + name;
-         } catch (Exception e) {
-             parentTransaction.captureException(e);
-             span.captureException(e);
-             throw e;
-         } finally {
-             span.end();
-             if (type == ProcessorType.SINK) {
-                 parentTransaction.end();
-             }
-         }
+/**
+ * Wraps APM Transaction/Span around business logic.
+ */
+private String processMessage(String message) throws InterruptedException {
+    this.message = message;
+    System.out.println("In Process Message... at " + dateFormat.format(new Date()));
+    Transaction transaction = createTransaction(message);
+    //transaction.injectTraceHeaders(this::injectParentTransactionId);
+    Span span = transaction.startSpan();
+    try {
+       span.injectTraceHeaders(this::injectParentTransactionId);
+       span.setName(name+"-span");
+       thisIsActuallyABusinessLogic();
+       return this.message + " processed by " + name;
+    } catch (Exception e) {
+        transaction.captureException(e);
+        span.captureException(e);
+        throw e;
+    } finally {
+        System.out.println("Before Span End");
+        span.end();
+        transaction.end();
+        System.out.println("After Span End");
     }
-    
-    private Transaction getOrCreateTransaction(String message) {
-        Transaction transaction;
-        if (type == ProcessorType.SOURCE) {
-            transaction = ElasticApm.startTransaction();
-        } else {
-            transaction = ElasticApm.startTransactionWithRemoteParent(key -> extractKey(key, message));
-        }
-        transaction.setName(PARENT_TRANSACTION_NAME);
-        return transaction;
-    }
+}
 
-    private void injectParentTransactionId(String key, String value) {
-        removeOldKey(key);
-        message = " <<<" + key + ":" + value + ";>>>" + message;
-    }
 
-    private void removeOldKey(String key) {
-        Pattern pattern = getKeyPattern(key);
-        Matcher matcher = pattern.matcher(message);
-        if (matcher.find()) {
-            message = message.substring(0, matcher.start()) + message.substring(matcher.end());
-        }
+private Transaction createTransaction(String message) {
+    Transaction transaction;
+    if (type == ProcessorType.SOURCE) {
+        System.out.println("Creating transaction new, processor type = " + type);
+        transaction = ElasticApm.startTransaction();
+    } else {
+        System.out.println("Creating transaction with remote parent, processor type = " + type);
+        transaction = ElasticApm.startTransactionWithRemoteParent(key -> extractKey(key, message));
     }
+    transaction.setName(name+"-txn");
+    return transaction;
+}
 
-    private String extractKey(String key, String message) {
-        Matcher matcher = getKeyPattern(key).matcher(message);
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-        return null;
+/**
+ * Some useful work.
+ */
+private void thisIsActuallyABusinessLogic() throws InterruptedException {
+    // Random random = new Random();
+    //int processTime = random.nextInt(5) + 1;
+    int processTime = 3;
+    System.out.println("processTime time in seconds = " + processTime);
+    TimeUnit.SECONDS.sleep(processTime);
+}
+
+private void injectParentTransactionId(String key, String value) {
+    System.out.println("header key : " + key);
+    System.out.println("header value : " + value);
+    removeOldKey(key);
+    message = "<" + key + ":" + value + "> " + message;
+
+}
+
+private void removeOldKey(String key) {
+    Pattern pattern = getKeyPattern(key);
+    Matcher matcher = pattern.matcher(message);
+    if (matcher.find()) {
+        message = message.substring(0, matcher.start()) + message.substring(matcher.end());
     }
+}
 
-    private Pattern getKeyPattern(String key) {
-        return Pattern.compile("<<<" + key + ":(.+);>>>");
+private String extractKey(String key, String message) {
+    Matcher matcher = getKeyPattern(key).matcher(message);
+    if (matcher.find()) {
+        return matcher.group(1);
     }
+    return null;
+}
 
-``` 
+private Pattern getKeyPattern(String key) {
+    return Pattern.compile("<" + key + ":(.+)> ");
+}
+
+```
 ## Actual result
- - only one transaction is created
- - duration of this transaction is only 3 seconds, e.g. execution time of single processor
- - parent transaction contains only one span for `Sink`
+ - All transactions and spans are created with correct parents but the timing of the distributed trace is not correct.
+ - The duration of the entire flow is ~3 seconds, e.g. execution time of single processor but should be closer to 12 seconds total time.
 
-![But we actually have this](imgs/actual_result.png?raw=true "APM Kibana: Actual")
+![But we actually have this](imgs/actual_resultnew.png?raw=true "APM Kibana: Actual")
 
 ## `follows_from` relation
 It could also be OK for us not to have parent transaction, but have span following one after another, like
@@ -114,11 +134,11 @@ It could also be OK for us not to have parent transaction, but have span followi
 
 but [APM open trace bridge documentation](https://www.elastic.co/guide/en/apm/agent/java/current/opentracing-bridge.html) says
 ```
-Currently, this bridge only supports child_of references. Other references, 
+Currently, this bridge only supports child_of references. Other references,
 like follows_from are not supported yet.
-``` 
+```
 so not sure if it is possible.
 
 ## P.S.
 Our real processors are listeners, so they do listen Kafka in a never ending loop. If this is the reason, this processor
-also can run in a loop mode, by setting `burnCpus` property to `true` in [pipeline.properties](pipeline.properties). 
+also can run in a loop mode, by setting `burnCpus` property to `true` in [pipeline.properties](pipeline.properties).

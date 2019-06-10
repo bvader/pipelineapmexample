@@ -43,82 +43,78 @@ Processor "Business logic" is executed in [`PipelineProcessor.thisIsActuallyABus
 /**
  * Wraps APM Transaction/Span around business logic.
  */
-private String processMessage(String message) throws InterruptedException {
-    this.message = message;
-    System.out.println("In Process Message... at " + dateFormat.format(new Date()));
-    Transaction transaction = createTransaction(message);
-    //transaction.injectTraceHeaders(this::injectParentTransactionId);
-    Span span = transaction.startSpan();
-    try {
-       span.injectTraceHeaders(this::injectParentTransactionId);
-       span.setName(name+"-span");
-       thisIsActuallyABusinessLogic();
-       return this.message + " processed by " + name;
-    } catch (Exception e) {
-        transaction.captureException(e);
-        span.captureException(e);
-        throw e;
-    } finally {
-        System.out.println("Before Span End");
-        span.end();
-        transaction.end();
-        System.out.println("After Span End");
-    }
-}
+ private String processMessage(String message) throws InterruptedException {
+     this.message = message;
+     System.out.println("In Process Message... at " + dateFormat.format(new Date()));
+     Transaction transaction = createTransaction(message);
+     Span span = transaction.startSpan();
+     try {
+        span.injectTraceHeaders(this::injectParentTransactionId);
+        span.setName(name+"-span");
+        thisIsActuallyABusinessLogic();
+        return this.message + " processed by " + name;
+     } catch (Exception e) {
+         transaction.captureException(e);
+         span.captureException(e);
+         throw e;
+     } finally {
+         span.end();
+         transaction.end();
+     }
+ }
 
 
-private Transaction createTransaction(String message) {
-    Transaction transaction;
-    if (type == ProcessorType.SOURCE) {
-        System.out.println("Creating transaction new, processor type = " + type);
-        transaction = ElasticApm.startTransaction();
-    } else {
-        System.out.println("Creating transaction with remote parent, processor type = " + type);
-        transaction = ElasticApm.startTransactionWithRemoteParent(key -> extractKey(key, message));
-    }
-    transaction.setName(name+"-txn");
-    return transaction;
-}
+ private Transaction createTransaction(String message) {
+     Transaction transaction;
+     if (type == ProcessorType.SOURCE) {
+         System.out.println("Creating transaction new, processor type = " + type);
+         transaction = ElasticApm.startTransaction();
+     } else {
+         System.out.println("Creating transaction with remote parent, processor type = " + type);
+         transaction = ElasticApm.startTransactionWithRemoteParent(key -> extractKey(key, message));
+     }
+     transaction.setName(name+"-txn");
+     return transaction;
+ }
 
-/**
- * Some useful work.
- */
-private void thisIsActuallyABusinessLogic() throws InterruptedException {
-    // Random random = new Random();
-    //int processTime = random.nextInt(5) + 1;
-    int processTime = 3;
-    System.out.println("processTime time in seconds = " + processTime);
-    TimeUnit.SECONDS.sleep(processTime);
-}
+ /**
+  * Some useful work.
+  */
+ private void thisIsActuallyABusinessLogic() throws InterruptedException {
+     Random random = new Random();
+     //int processTime = random.nextInt(5) + 1;
+     int processTime = 3;
+     System.out.println("processTime time in seconds = " + processTime);
+     TimeUnit.SECONDS.sleep(processTime);
+ }
 
-private void injectParentTransactionId(String key, String value) {
-    System.out.println("header key : " + key);
-    System.out.println("header value : " + value);
-    removeOldKey(key);
-    message = "<" + key + ":" + value + "> " + message;
+ private void injectParentTransactionId(String key, String value) {
+     System.out.println("header key : " + key);
+     System.out.println("header value : " + value);
+     removeOldKey(key);
+     message = "<" + key + ":" + value + "> " + message;
 
-}
+ }
 
-private void removeOldKey(String key) {
-    Pattern pattern = getKeyPattern(key);
-    Matcher matcher = pattern.matcher(message);
-    if (matcher.find()) {
-        message = message.substring(0, matcher.start()) + message.substring(matcher.end());
-    }
-}
+ private void removeOldKey(String key) {
+     Pattern pattern = getKeyPattern(key);
+     Matcher matcher = pattern.matcher(message);
+     if (matcher.find()) {
+         message = message.substring(0, matcher.start()) + message.substring(matcher.end());
+     }
+ }
 
-private String extractKey(String key, String message) {
-    Matcher matcher = getKeyPattern(key).matcher(message);
-    if (matcher.find()) {
-        return matcher.group(1);
-    }
-    return null;
-}
+ private String extractKey(String key, String message) {
+     Matcher matcher = getKeyPattern(key).matcher(message);
+     if (matcher.find()) {
+         return matcher.group(1);
+     }
+     return null;
+ }
 
-private Pattern getKeyPattern(String key) {
-    return Pattern.compile("<" + key + ":(.+)> ");
-}
-
+ private Pattern getKeyPattern(String key) {
+     return Pattern.compile("<" + key + ":(.+)> ");
+ }
 ```
 ## Actual result
  - All transactions and spans are created with correct parents but the timing of the distributed trace is not correct.

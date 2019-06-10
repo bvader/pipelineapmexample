@@ -51,7 +51,7 @@ public class PipelineProcessorFactory {
                 return "Sink";
             case SOURCE:
                 return "Source";
-            case PRCOSSOR:
+            case PROCESSOR:
                 return "Processor-" + (currentNumber - 1);
             default:
                 throw new IllegalArgumentException("Unsupported type " + type);
@@ -65,6 +65,6 @@ public class PipelineProcessorFactory {
         if (currentNumber.equals(ports.size() + 1)) {
             return ProcessorType.SINK;
         }
-        return ProcessorType.PRCOSSOR;
+        return ProcessorType.PROCESSOR;
     }
 }

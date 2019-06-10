@@ -54,10 +54,8 @@ public class PipelineProcessor {
             span.captureException(e);
             throw e;
         } finally {
-            System.out.println("Before Span End");
             span.end();
             transaction.end();
-            System.out.println("After Span End");
         }
     }
 

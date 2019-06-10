@@ -3,4 +3,4 @@ out
 .idea
 .gradle
 apm.properties
-
+.DS_Store

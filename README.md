@@ -22,6 +22,7 @@ java processes (one for each [processor](src/main/java/org/pipelineexample/apm/p
 Number of processors and ports that they use for sending/receiving messages is defined in [run-pipeline.sh](run-pipeline.sh).
 Each [processor](src/main/java/org/pipelineexample/apm/processor/PipelineProcessor.java) except `Source`(just a fancy name for the first [processor](src/main/java/org/pipelineexample/apm/processor/PipelineProcessor.java), last is `Sink`) waits for message on incoming port,
 process it and write new message to outgoing port. `Source` does not read message, it just sends "First message" string.
+The apm server / config properties can be found or configured in [run-processor.sh](run-processor.sh)
 
 ```
      +---------+         +----------+         +----------+           +----------+

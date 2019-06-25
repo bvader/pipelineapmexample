@@ -78,8 +78,8 @@ public class PipelineProcessor {
      */
     private void thisIsActuallyABusinessLogic() throws InterruptedException {
         Random random = new Random();
-        //int processTime = random.nextInt(5) + 1;
-        int processTime = 3;
+        int processTime = random.nextInt(5) + 1;
+        //int processTime = 3;
         System.out.println("processTime time in seconds = " + processTime);
         TimeUnit.SECONDS.sleep(processTime);
     }

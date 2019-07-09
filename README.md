@@ -118,23 +118,11 @@ Processor "Business logic" is executed in [`PipelineProcessor.thisIsActuallyABus
  }
 ```
 ## Actual result
- - All transactions and spans are created with correct parents but the timing of the distributed trace is not correct.
- - The duration of the entire flow is ~3 seconds, e.g. execution time of single processor but should be closer to 12 seconds total time.
+ - After Elastic 7.2 Release All transactions and spans are created with correct parents and now the timing looks pretty good! 
+ - The duration of the entire flow is ~12 seconds in the waterfall, there still seems to be a minor issues with the Duration value. We will see if that gets fixed in 7.3 release.
 
-![But we actually have this](imgs/actual_resultnew.png?raw=true "APM Kibana: Actual")
+![Now we actually have this](imgs/actual_result_new_7_2.png?raw=true "APM Kibana: Actual")
 
-## `follows_from` relation
-It could also be OK for us not to have parent transaction, but have span following one after another, like
-
-![It would be nice to have something like this](imgs/apm-example2.png?raw=true "APM Kibana: Other OK result")
-
-
-but [APM open trace bridge documentation](https://www.elastic.co/guide/en/apm/agent/java/current/opentracing-bridge.html) says
-```
-Currently, this bridge only supports child_of references. Other references,
-like follows_from are not supported yet.
-```
-so not sure if it is possible.
 
 ## P.S.
 Our real processors are listeners, so they do listen Kafka in a never ending loop. If this is the reason, this processor

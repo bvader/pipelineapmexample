@@ -1,5 +1,5 @@
 #!/bin/bash
-java "-javaagent:./elastic-apm-agent-1.6.1.jar" \
+java "-javaagent:./elastic-apm-agent-1.13.0.jar" \
 -Delastic.apm.service_name=$2 \
 -Delastic.apm.server_urls="http://localhost:8200" \
 -Delastic.apm.secret_token="" \

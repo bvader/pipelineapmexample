@@ -6,3 +6,5 @@ curl -O https://repo1.maven.org/maven2/co/elastic/apm/elastic-apm-agent/${AGENT_
 ./run-processor.sh 2 Process1 7070,7071,7072 &
 ./run-processor.sh 3 Process2 7070,7071,7072 &
 ./run-processor.sh 4 Sink 7070,7071,7072 &
+
+

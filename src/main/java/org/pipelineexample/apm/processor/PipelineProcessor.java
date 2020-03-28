@@ -55,6 +55,7 @@ public class PipelineProcessor {
             throw e;
         } finally {
             span.end();
+            System.out.println("Transaction End : ####");
             transaction.end();
         }
     }

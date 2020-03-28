@@ -4,7 +4,7 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS
 
 buildscript {
     ext {
-        apmVersion = '1.13.0'
+        apmVersion = System.getenv('TAG')
     }
 }
 

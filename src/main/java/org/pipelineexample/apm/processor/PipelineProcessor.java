@@ -110,6 +110,9 @@ public class PipelineProcessor {
     }
 
     private Pattern getKeyPattern(String key) {
-        return Pattern.compile("<" + key + ":(.+)> ");
+        System.out.println("In getKeyPattern header key : " + key);
+        Pattern p = Pattern.compile("<" + key + ":(.+)> ");
+        System.out.println("Pattern: " + p);
+        return p;
     }
 }

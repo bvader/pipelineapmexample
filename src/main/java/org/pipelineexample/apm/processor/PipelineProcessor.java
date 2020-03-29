@@ -1,6 +1,8 @@
 package org.pipelineexample.apm.processor;
 
 import co.elastic.apm.api.*;
+import jdk.nashorn.internal.runtime.ParserException;
+
 import org.pipelineexample.apm.LowBudgetKafka;
 
 import java.io.IOException;
@@ -11,7 +13,10 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
 public class PipelineProcessor {
 
@@ -21,6 +26,8 @@ public class PipelineProcessor {
     private final LowBudgetKafka communicationChannel;
     private final ProcessorType type;
     private String message;
+    private JSONObject jsonMessageObectObect;
+    private JSONParser jsonParser;
     private DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss.SSS");
 
     public PipelineProcessor(String name, LowBudgetKafka communicationChannel, ProcessorType type) {
@@ -30,7 +37,7 @@ public class PipelineProcessor {
 
     }
 
-    public void process() throws InterruptedException, IOException {
+    public void process() throws InterruptedException, IOException, ParseException {
         String inMessage = communicationChannel.readMessage();
         String outMessage = processMessage(inMessage);
         communicationChannel.sendMessage(outMessage);
@@ -39,16 +46,30 @@ public class PipelineProcessor {
     /**
      * Wraps APM Transaction/Span around business logic.
      */
-    private String processMessage(String message) throws InterruptedException {
+    private String processMessage(String message) throws InterruptedException, ParseException {
+
+        // Convert message from String to JSONObject
         this.message = message;
-        System.out.println("In Process Message... at " + dateFormat.format(new Date()));
-        Transaction transaction = createTransaction(message);
-        Span span = transaction.startSpan();
         try {
-           span.injectTraceHeaders(this::injectParentTransactionId);
-           span.setName(name+"-span");
-           thisIsActuallyABusinessLogic();
-           return this.message + " processed by " + name;
+            jsonParser = new JSONParser();
+            jsonMessageObectObect = (JSONObject) jsonParser.parse(message);
+        } catch (ParseException e) {
+            e.printStackTrace();
+            throw e;
+        }
+
+        Transaction transaction = createTransaction();
+        Span span = transaction.startSpan();
+
+        try {
+            System.out.println("In Process Message... at " + dateFormat.format(new Date()));
+
+            span.injectTraceHeaders(this::injectParentTransactionId);
+            span.setName(name + "-span");
+            thisIsActuallyABusinessLogic();
+            String newMessage = "message processed by " + name;
+            jsonMessageObectObect.put("payload_message", newMessage);
+            return jsonMessageObectObect.toString();
         } catch (Exception e) {
             transaction.captureException(e);
             span.captureException(e);
@@ -60,17 +81,16 @@ public class PipelineProcessor {
         }
     }
 
-
-    private Transaction createTransaction(String message) {
+    private Transaction createTransaction() {
         Transaction transaction;
         if (type == ProcessorType.SOURCE) {
             System.out.println("Creating transaction new, processor type = " + type);
             transaction = ElasticApm.startTransaction();
         } else {
             System.out.println("Creating transaction with remote parent, processor type = " + type);
-            transaction = ElasticApm.startTransactionWithRemoteParent(key -> extractKey(key, message));
+            transaction = ElasticApm.startTransactionWithRemoteParent(key -> extractKey(key));
         }
-        transaction.setName(name+"-txn");
+        transaction.setName(name + "-txn");
         return transaction;
     }
 
@@ -80,7 +100,7 @@ public class PipelineProcessor {
     private void thisIsActuallyABusinessLogic() throws InterruptedException {
         Random random = new Random();
         int processTime = random.nextInt(5) + 1;
-        //int processTime = 3;
+        // int processTime = 3;
         System.out.println("processTime time in seconds = " + processTime);
         TimeUnit.SECONDS.sleep(processTime);
     }
@@ -88,31 +108,10 @@ public class PipelineProcessor {
     private void injectParentTransactionId(String key, String value) {
         System.out.println("header key : " + key);
         System.out.println("header value : " + value);
-        removeOldKey(key);
-        message = "<" + key + ":" + value + "> " + message;
-
+        jsonMessageObectObect.put(key, value);
     }
 
-    private void removeOldKey(String key) {
-        Pattern pattern = getKeyPattern(key);
-        Matcher matcher = pattern.matcher(message);
-        if (matcher.find()) {
-            message = message.substring(0, matcher.start()) + message.substring(matcher.end());
-        }
-    }
-
-    private String extractKey(String key, String message) {
-        Matcher matcher = getKeyPattern(key).matcher(message);
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-        return null;
-    }
-
-    private Pattern getKeyPattern(String key) {
-        System.out.println("In getKeyPattern header key : " + key);
-        Pattern p = Pattern.compile("<" + key + ":(.+)> ");
-        System.out.println("Pattern: " + p);
-        return p;
+    private String extractKey(String key) {
+        return (String) jsonMessageObectObect.get(key);
     }
 }

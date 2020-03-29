@@ -5,17 +5,21 @@ import java.net.ConnectException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.TimeUnit;
+import org.json.simple.JSONArray; 
+import org.json.simple.JSONObject; 
 
 public class LowBudgetKafka {
 
     private static final String LOCALHOST = "127.0.0.1";
     private static final String FIRST_MESSAGE = "First Message";
-    private static final String END_MESSAGE = "Pipeline ended!";
+    private static final String END_MESSAGE = "Message Procesed at SINK Ending Pipeline";
 
     private final int inPort;
     private final int outPort;
     private final InfoConsole infoConsole;
     private boolean burnCpus;
+    private JSONObject jsonMessage;
+
 
     public LowBudgetKafka(int inPort, int outPort, InfoConsole infoConsole, boolean burnCpus) {
         this.inPort = inPort;
@@ -47,7 +51,10 @@ public class LowBudgetKafka {
     public String readMessage() throws IOException, InterruptedException {
         infoConsole.info("**** Started ****");
         if (inPort == -1) {
-            return FIRST_MESSAGE;
+            JSONObject message = new JSONObject();
+            message.put("payload_message", "FIRST_MESSAGE");
+            message.put("other_stuff", "otherstuff message");
+            return message.toString();
         }
         while (true) {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();

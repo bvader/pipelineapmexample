@@ -1,7 +1,6 @@
 #!/bin/bash
 # set -x
 
-TAG="1.13.0"
 export TAG
 AGENT_VERSION=${TAG}
 AGENT_FILE=elastic-apm-agent-${AGENT_VERSION}.jar

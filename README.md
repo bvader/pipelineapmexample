@@ -11,9 +11,9 @@ Other possible option might be the same only without parent transaction.
 
 
 ## Quick start
-Run
+Run where TAG is the Java APM Agent Version you want to run
 ```
-./run-pipeline.sh
+TAG=1.15.0 ./run-pipeline.sh
 ```
 
 ## More details

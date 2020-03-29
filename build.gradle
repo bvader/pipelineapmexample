@@ -1,7 +1,3 @@
-import java.util.concurrent.Executors
-
-import static java.util.concurrent.TimeUnit.NANOSECONDS
-
 buildscript {
     ext {
         apmVersion = System.getenv('TAG')
@@ -23,6 +19,7 @@ repositories {
 
 dependencies {    
     compile "co.elastic.apm:apm-agent-api:${apmVersion}"
+    compile "com.googlecode.json-simple:json-simple:1.1.1"
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 
@@ -37,62 +34,3 @@ jar {
         configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
     }
 }
-
-task gitAddApmJar {
-    doLast {
-        def elasticApm = new File("./elastic-apm-agent-${apmVersion}.jar");
-
-        if (!elasticApm.exists()) {
-            throw new GradleException("File not found /elastic-apm-agent${apmVersion}.jar")
-        }
-        exec {
-            commandLine 'jar', '-uf', jar.archivePath, "./elastic-apm-agent-${apmVersion}.jar"
-        }
-    }
-}
-
-
-task runPipeline {
-    doLast {
-        def apmPropertiesFile = new File("apm.properties")
-        if (!apmPropertiesFile.exists()) {
-            throw new GradleException("apm.properties not found. Create it from `apm.example.propeties`")
-        }
-        
-        def apmProps = new Properties()
-        file("apm.properties").withInputStream { apmProps.load(it) }
-        apmProps.put("elastic.apm.application_packages", "org.pipelineexample.apm")
-        
-             
-        def props = new Properties()
-        file("pipeline.properties").withInputStream { props.load(it) }
-        def portsStr = props.getProperty("ports")
-        def burnCpus = props.getProperty("burnCpus");
-        def total = portsStr.split(",").length + 1;
-
-        def taskExecutor = Executors.newFixedThreadPool(total)
-        1.upto(total, {
-            def num = it            
-            taskExecutor.execute({javaexec {
-                main="-javaagent:./elastic-apm-agent-${apmVersion}.jar"
-                args = ["-Delastic.apm.service_name=${apmProps.getProperty("elastic.apm.service_name")}",
-                        "-Delastic.apm.server_urls=${apmProps.getProperty("elastic.apm.server_urls")}",
-                        "-Delastic.apm.secret_token=${apmProps.getProperty("elastic.apm.secret_token")}",
-                        "-Delastic.apm.application_packages=${apmProps.getProperty("elastic.apm.application_packages")}",
-                        "-jar",
-                        jar.archivePath, num, portsStr, burnCpus]
-                }
-            })
-        })
-        taskExecutor.shutdown()
-        try {
-            taskExecutor.awaitTermination(Long.MAX_VALUE, NANOSECONDS)
-        } catch (InterruptedException e) {
-            throw new GradleException("task interupted", e)
-        }
-
-    }
-}
-
-runPipeline.dependsOn.add("jar")
-build.finalizedBy gitAddApmJar
